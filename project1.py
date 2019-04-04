@@ -14,13 +14,21 @@ def main():
     x_features = data[:, 0:col_count - 1]
     y_labels = data[:, col_count - 1]
 
+    #remove id's
+    x_features = np.hstack(
+        (x_features[:, [1]], x_features[:, [2]], x_features[:, [3]], x_features[:, [4]], x_features[:, [5]], x_features[:, [6]])
+    )
+
+    #data transforms
+    x_features[:,1] = np.sqrt(x_features[:,1])
+    x_features[:,2] = np.log10(x_features[:,2])
+
     #create linear regression object and fit it against all features
     reg = LinearRegression()
     reg = reg.fit(x_features, y_labels)
 
     y_predicted = reg.predict(x_features)
     sse = reg._residues
-
     
     print('All features coefficients:')
     print_array(reg.coef_)
@@ -28,37 +36,17 @@ def main():
     print('SSE all features:', sse)
     print('MSE all features:', np.mean(np.square(np.subtract(y_labels, y_predicted))))
 
-    # single_feature_plot(x_features, y_labels)
-    # plt.figure()
-    # plt.scatter(np.log10(np.sqrt(x_features[:, 2])), y_labels%100, color='g')
-    
+    #correlation coefficients
+    correlation = np.corrcoef(x_features, rowvar=False)
+    plt.imshow(correlation, cmap='hot', interpolation='nearest')
+    plt.colorbar()
 
-#     for i in range(7):
-#         print('\n')
-#         single_feature_plot(x_features, y_labels, i)
-
-    plt.show()
-
-#     #correlation coefficients
-#     correlation = np.corrcoef(x_features, rowvar=False)
-#     plt.imshow(correlation, cmap='hot', interpolation='nearest')
-#     plt.colorbar()
-#     plt.show()
-
-#     #remove id numbers
-#     x_features_without_id = np.hstack((x_features[:, [1]], x_features[:, [2]], x_features[:, [3]], x_features[:, [4]], x_features[:, [5]], x_features[:, [6]]))
-
-#     #new linear regression without id numbers
-#     reg = LinearRegression().fit(x_features_without_id, y_labels)
-#     print('SSE for trimmed features:', reg._residues)
-
-#     x1 = x_features[:, [1]]
-#     x1 = x1 % 1
-    
+    plt.show()    
 
 def load_data():
     data = np.loadtxt('reDataUCI.csv', delimiter=",", skiprows=1)
-    data = remove_outliers(data, 20, 60)
+    #remove outliers to keep only within range
+    data = remove_outliers_from_y(data, 10, 70)
     row_count = np.size(data, 0)
     col_count = np.size(data, 1)
 
@@ -90,7 +78,6 @@ def generate_scatter_all(x_features, y_labels):
     generate_scatter('Dist to MRT vs.Y', 'Y label', 'Dist to MRT', 3, x_features, y_labels)
     generate_scatter('Number of convenience stores vs.Y', 'Y label', 'Number of convenience stores', 4, x_features, y_labels)
     generate_scatter('Lat Coord vs.Y', 'Y label', 'Lat Coord', 5, x_features, y_labels)
-    generate_scatter('Long coord vs.Y', 'Y label', 'Long coord', 6, x_features, y_labels)
     plt.show()
 
 def clear_terminal():
@@ -100,8 +87,7 @@ def print_array(arr):
     for i, item in enumerate(arr):
         print(str(i)+':', item)
 
-def remove_outliers(data, low, high):
-    print('old:', len(data))
+def remove_outliers_from_y(data, low, high):   
     i = 0
     loopcount = len(data)
     while i < loopcount:
@@ -109,9 +95,16 @@ def remove_outliers(data, low, high):
             data = np.delete(data, i, axis=0)
             loopcount-=1
         i+=1
+    return data
 
-    print('new:', len(data))
-
+def remove_outliers_x(data, low, high):
+    i = 0
+    loopcount = len(data)
+    while i < loopcount:
+        if(data[i] > high or data[i] < low):
+            data = np.delete(data, i, axis=0)
+            loopcount -= 1
+        i += 1
     return data
 
 main()
