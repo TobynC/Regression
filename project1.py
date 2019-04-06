@@ -41,7 +41,25 @@ def main():
     plt.imshow(correlation, cmap='hot', interpolation='nearest')
     plt.colorbar()
 
-    plt.show()    
+    for i in range(6):
+        plt.figure()
+        x = x_features[:, [i]]
+        reg = LinearRegression().fit(x, y_labels)
+        predictedY = reg.predict(x)
+        plt.scatter(x, y_labels, color='g')
+        plt.plot(x, predictedY, color='r')
+
+    ols = ordinary_least_squares(x_features, y_labels)
+    y_predicted = np.matmul(x_features, ols)
+    sse = np.sum(np.power(y_predicted-y_labels, 2))
+    mse = sse/np.size(y_predicted)
+
+    print("Results from OLS:\n")
+    print("Coefficients:")
+    print_array(ols)
+    print('SSE:', sse)
+    print('MSE:', mse)
+    #plt.show()    
 
 def load_data():
     data = np.loadtxt('reDataUCI.csv', delimiter=",", skiprows=1)
@@ -106,5 +124,14 @@ def remove_outliers_x(data, low, high):
             loopcount -= 1
         i += 1
     return data
+
+def ordinary_least_squares(training_data, labels):
+    x_trans = np.transpose(training_data)
+    betas = np.matmul(np.linalg.inv(np.matmul(x_trans, training_data)), np.matmul(x_trans, labels))  
+
+    return betas
+
+def bdg(training_data, labels, alpha, epsilon, epochs):
+    return 'not implemented'
 
 main()
