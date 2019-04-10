@@ -41,16 +41,18 @@ def main():
     plt.imshow(correlation, cmap='hot', interpolation='nearest')
     plt.colorbar()
 
-    for i in range(6):
-        plt.figure()
-        x = x_features[:, [i]]
-        reg = LinearRegression().fit(x, y_labels)
-        predictedY = reg.predict(x)
-        plt.scatter(x, y_labels, color='g')
-        plt.plot(x, predictedY, color='r')
+    # for i in range(6):
+    #     plt.figure()
+    #     x = x_features[:, [i]]
+    #     reg = LinearRegression().fit(x, y_labels)
+    #     predictedY = reg.predict(x)
+    #     plt.scatter(x, y_labels, color='g')
+    #     plt.plot(x, predictedY, color='r')
 
     betas = ordinary_least_squares(x_features, y_labels)
-    y_predicted = np.matmul(x_features, betas)
+    y = np.matmul(x_features, betas)
+    reg = LinearRegression().fit(x_features, y)
+    y_predicted = reg.predict(x_features)
     sse = np.sum(np.power(y_predicted - y_labels, 2))
     mse = sse/np.size(y_predicted)
 
@@ -59,12 +61,82 @@ def main():
     print_array(betas)
     print('SSE:', sse)
     print('MSE:', mse)
-    #plt.show()    
+
+
+    theta_0, theta_1 = bgd(x_features, y_labels, 0.001, 0.0001, 10000)
+      
+    ########################second data set##########################
+    #read in file
+    data, row_count, col_count = load_secondary_data()
+
+    #set up features and labels
+    x_features = data[:, 0:col_count - 1]
+    y_labels = data[:, col_count - 1]
+
+    #data transforms
+
+    #create linear regression object and fit it against all features
+    reg = LinearRegression()
+    reg = reg.fit(x_features, y_labels)
+
+    y_predicted = reg.predict(x_features)
+    sse = reg._residues
+
+    print('All features coefficients:')
+    print_array(reg.coef_)
+    print('Intercept:', reg.intercept_)
+    print('SSE all features:', sse)
+    print('MSE all features:', np.mean(
+        np.square(np.subtract(y_labels, y_predicted))))
+
+    #correlation coefficients
+    correlation = np.corrcoef(x_features, rowvar=False)
+    plt.imshow(correlation, cmap='hot', interpolation='nearest')
+    plt.colorbar()
+    for i in range(11):
+        plt.figure()
+        x = x_features[:, [i]]
+        reg = LinearRegression().fit(x, y_labels)
+        predictedY = reg.predict(x)
+        plt.scatter(x, y_labels, color='g')
+        plt.plot(x, predictedY, color='r')
+
+    betas = ordinary_least_squares(x_features, y_labels)
+    y = np.matmul(x_features, betas)
+    reg = LinearRegression().fit(x_features, y)
+    y_predicted = reg.predict(x_features)
+    sse = np.sum(np.power(y_predicted - y_labels, 2))
+    mse = sse/np.size(y_predicted)
+
+    print("\nResults from OLS:\n")
+    print("Coefficients:")
+    print_array(betas)
+    print('SSE:', sse)
+    print('MSE:', mse)
+
+    #plt.show()
+    #theta_0, theta_1 = gradient_descent(0.1, x_features, y_labels, 0.1, 100)
+    theta_0, theta_1 = bgd(x_features, y_labels, 0.001, 0.0001, 10000)
+    print('theta0:')
+    print_array(theta_0)
+    print('theta1:')
+    print_array(theta_1)
+
+    print('predicted y:')
+    predictedY = theta_0+theta_1*x_features
+    print('predicted y:',predictedY)
 
 def load_data():
     data = np.loadtxt('reDataUCI.csv', delimiter=",", skiprows=1)
     #remove outliers to keep only within range
     data = remove_outliers_from_y(data, 10, 70)
+    row_count = np.size(data, 0)
+    col_count = np.size(data, 1)
+
+    return (data, row_count, col_count)
+
+def load_secondary_data():
+    data = np.loadtxt('winequality-red.csv', delimiter=';', skiprows=1)
     row_count = np.size(data, 0)
     col_count = np.size(data, 1)
 
@@ -131,7 +203,78 @@ def ordinary_least_squares(training_data, labels):
 
     return betas
 
-def bdg(training_data, labels, alpha, epsilon, epochs):
-    return 'not implemented'
+def calculate_error(theta_0, theta_1, training_data, labels):
+   return sum([(theta_0 + theta_1*training_data[i] - labels[i])**2 for i in range(training_data.shape[0])])
 
+def bgd(training_data, labels, alpha, epsilon, epochs):
+    converged = False
+    training_data_row_shape = training_data.shape[0]
+
+    theta_0 = np.random.random(training_data.shape[1])
+    theta_1 = np.random.random(training_data.shape[1])
+
+    J = calculate_error(theta_0, theta_1, training_data, labels)
+
+    for i in (i for i in range(epochs) if not converged):
+        gradient_0 = 1.0/training_data_row_shape * sum([(theta_0+theta_1*training_data[j]-labels[j]) for j in range(training_data_row_shape)])
+        gradient_1 = 1.0/training_data_row_shape * sum([(theta_0+theta_1*training_data[j]-labels[j]) * training_data[j] for j in range (training_data_row_shape)])
+
+        temp_0 = theta_0 - alpha * gradient_0
+        temp_1 = theta_1 - alpha * gradient_1
+
+        theta_0 = temp_0
+        theta_1 = temp_1
+
+        mean_squared_error = calculate_error(theta_0, theta_1, training_data, labels)
+
+        result = abs(J - mean_squared_error)
+
+        if(result[j] <= epsilon for j in range(result.shape[0])): converged = True
+
+        J = mean_squared_error
+
+    return (theta_0, theta_1)
+
+def gradient_descent(alpha, x, y, ep=0.0001, max_iter=10000):
+    converged = False
+    iter = 0
+    m = x.shape[0]  # number of samples
+
+    # initial theta
+    t0 = np.random.random(x.shape[1])
+    t1 = np.random.random(x.shape[1])
+
+    # total error, J(theta)
+    J = sum([(t0 + t1*x[i] - y[i])**2 for i in range(m)])
+
+    # Iterate Loop
+    while not converged:
+        # for each training sample, compute the gradient (d/d_theta j(theta))
+        grad0 = 1.0/m * sum([(t0 + t1*x[i] - y[i]) for i in range(m)])
+        grad1 = 1.0/m * sum([(t0 + t1*x[i] - y[i])*x[i] for i in range(m)])
+
+        # update the theta_temp
+        temp0 = t0 - alpha * grad0
+        temp1 = t1 - alpha * grad1
+
+        # update theta
+        t0 = temp0
+        t1 = temp1
+
+        # mean squared error
+        e = sum([(t0 + t1*x[i] - y[i])**2 for i in range(m)])
+
+        if abs(J-e) <= ep:
+            print ('Converged, iterations: ', iter, '!!!')
+            converged = True
+
+        J = e   # update error
+        iter += 1  # update iter
+
+        if iter == max_iter:
+            print ('Max interactions exceeded!')
+            converged = True
+
+    return t0, t1
+    
 main()
