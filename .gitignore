@@ -1,3 +1,5 @@
 .vscode
 linearRegressionExample.py
 Plots
+testing.csv
+*.xlsx

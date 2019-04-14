@@ -41,14 +41,16 @@ def main():
     plt.imshow(correlation, cmap='hot', interpolation='nearest')
     plt.colorbar()
 
-    # for i in range(6):
-    #     plt.figure()
-    #     x = x_features[:, [i]]
-    #     reg = LinearRegression().fit(x, y_labels)
-    #     predictedY = reg.predict(x)
-    #     plt.scatter(x, y_labels, color='g')
-    #     plt.plot(x, predictedY, color='r')
+    for i in range(6):
+        plt.figure()
+        x = x_features[:, [i]]
+        reg = LinearRegression().fit(x, y_labels)
+        predictedY = reg.predict(x)
+        plt.scatter(x, y_labels, color='g')
+        plt.plot(x, predictedY, color='r')
 
+    plt.show()
+    
     betas = ordinary_least_squares(x_features, y_labels)
     y = np.matmul(x_features, betas)
     reg = LinearRegression().fit(x_features, y)
@@ -62,10 +64,24 @@ def main():
     print('SSE:', sse)
     print('MSE:', mse)
 
+    thetas = bgd(x_features, y_labels, 1e-7, 100, 1000)
+    m_bgd = x_features.shape[0]
+    x_features_ones = np.hstack((np.ones((m_bgd, 1)), x_features))
 
-    theta_0, theta_1 = bgd(x_features, y_labels, 0.001, 0.0001, 10000)
-      
-    ########################second data set##########################
+    y = np.matmul(x_features_ones, thetas)
+    reg = LinearRegression().fit(x_features_ones, y)
+    y_predicted = reg.predict(x_features_ones)
+    sse = np.sum(np.power(y_predicted - y_labels, 2))
+    mse = sse/np.size(y_predicted)
+
+    print("\nResults from BGD:\n")
+    print("Coefficients:")
+    print_array(thetas)
+    print('SSE:', sse)
+    print('MSE:', mse, '\n')
+
+    print('\n########################second data set##########################\n')
+
     #read in file
     data, row_count, col_count = load_secondary_data()
 
@@ -74,6 +90,7 @@ def main():
     y_labels = data[:, col_count - 1]
 
     #data transforms
+    #none
 
     #create linear regression object and fit it against all features
     reg = LinearRegression()
@@ -86,8 +103,7 @@ def main():
     print_array(reg.coef_)
     print('Intercept:', reg.intercept_)
     print('SSE all features:', sse)
-    print('MSE all features:', np.mean(
-        np.square(np.subtract(y_labels, y_predicted))))
+    print('MSE all features:', np.mean(np.square(np.subtract(y_labels, y_predicted))))
 
     #correlation coefficients
     correlation = np.corrcoef(x_features, rowvar=False)
@@ -114,22 +130,27 @@ def main():
     print('SSE:', sse)
     print('MSE:', mse)
 
-    #plt.show()
-    #theta_0, theta_1 = gradient_descent(0.1, x_features, y_labels, 0.1, 100)
-    theta_0, theta_1 = bgd(x_features, y_labels, 0.001, 0.0001, 10000)
-    print('theta0:')
-    print_array(theta_0)
-    print('theta1:')
-    print_array(theta_1)
+    plt.show()
+    thetas = bgd(x_features, y_labels, 0.0001, 60, 30)
+    m_bgd = x_features.shape[0]
+    x_features_ones = np.hstack((np.ones((m_bgd, 1)), x_features))
 
-    print('predicted y:')
-    predictedY = theta_0+theta_1*x_features
-    print('predicted y:',predictedY)
+    y = np.matmul(x_features_ones, thetas)
+    reg = LinearRegression().fit(x_features_ones, y)
+    y_predicted = reg.predict(x_features_ones)
+    sse = np.sum(np.power(y_predicted - y_labels, 2))
+    mse = sse/np.size(y_predicted)
+
+    print("\nResults from BGD:\n")
+    print("Coefficients:")
+    print_array(thetas)
+    print('SSE:', sse)
+    print('MSE:', mse)
 
 def load_data():
     data = np.loadtxt('reDataUCI.csv', delimiter=",", skiprows=1)
     #remove outliers to keep only within range
-    data = remove_outliers_from_y(data, 10, 70)
+    data = remove_outliers_from_y(data, 10, 60)
     row_count = np.size(data, 0)
     col_count = np.size(data, 1)
 
@@ -187,94 +208,36 @@ def remove_outliers_from_y(data, low, high):
         i+=1
     return data
 
-def remove_outliers_x(data, low, high):
-    i = 0
-    loopcount = len(data)
-    while i < loopcount:
-        if(data[i] > high or data[i] < low):
-            data = np.delete(data, i, axis=0)
-            loopcount -= 1
-        i += 1
-    return data
-
 def ordinary_least_squares(training_data, labels):
     x_trans = np.transpose(training_data)
     betas = np.matmul(np.linalg.inv(np.matmul(x_trans, training_data)), np.matmul(x_trans, labels))  
 
     return betas
 
-def calculate_error(theta_0, theta_1, training_data, labels):
-   return sum([(theta_0 + theta_1*training_data[i] - labels[i])**2 for i in range(training_data.shape[0])])
-
 def bgd(training_data, labels, alpha, epsilon, epochs):
-    converged = False
-    training_data_row_shape = training_data.shape[0]
+    m = training_data.shape[0]
+    training_data = np.hstack((np.ones((m, 1)), training_data))
 
-    theta_0 = np.random.random(training_data.shape[1])
-    theta_1 = np.random.random(training_data.shape[1])
+    thetas = np.random.random(training_data.shape[1])
+    temp = []
+    total_cost = 0
 
-    J = calculate_error(theta_0, theta_1, training_data, labels)
+    for epoch in range(epochs):
+        temp = []
+        for theta in thetas:
+            total_cost = 0
+            for i, row in enumerate(training_data):
+                predicted_y = np.dot(thetas, row)
+                for j, data in enumerate(row):
+                    label = labels[i]
+                    total_cost += (predicted_y - label) * data
+            tempi = theta - alpha * (1.0/m) * total_cost
+            temp.append(tempi)
 
-    for i in (i for i in range(epochs) if not converged):
-        gradient_0 = 1.0/training_data_row_shape * sum([(theta_0+theta_1*training_data[j]-labels[j]) for j in range(training_data_row_shape)])
-        gradient_1 = 1.0/training_data_row_shape * sum([(theta_0+theta_1*training_data[j]-labels[j]) * training_data[j] for j in range (training_data_row_shape)])
+        #check for convergence        
+        thetas = temp        
+        if(abs(total_cost) <= epsilon): break
 
-        temp_0 = theta_0 - alpha * gradient_0
-        temp_1 = theta_1 - alpha * gradient_1
-
-        theta_0 = temp_0
-        theta_1 = temp_1
-
-        mean_squared_error = calculate_error(theta_0, theta_1, training_data, labels)
-
-        result = abs(J - mean_squared_error)
-
-        if(result[j] <= epsilon for j in range(result.shape[0])): converged = True
-
-        J = mean_squared_error
-
-    return (theta_0, theta_1)
-
-def gradient_descent(alpha, x, y, ep=0.0001, max_iter=10000):
-    converged = False
-    iter = 0
-    m = x.shape[0]  # number of samples
-
-    # initial theta
-    t0 = np.random.random(x.shape[1])
-    t1 = np.random.random(x.shape[1])
-
-    # total error, J(theta)
-    J = sum([(t0 + t1*x[i] - y[i])**2 for i in range(m)])
-
-    # Iterate Loop
-    while not converged:
-        # for each training sample, compute the gradient (d/d_theta j(theta))
-        grad0 = 1.0/m * sum([(t0 + t1*x[i] - y[i]) for i in range(m)])
-        grad1 = 1.0/m * sum([(t0 + t1*x[i] - y[i])*x[i] for i in range(m)])
-
-        # update the theta_temp
-        temp0 = t0 - alpha * grad0
-        temp1 = t1 - alpha * grad1
-
-        # update theta
-        t0 = temp0
-        t1 = temp1
-
-        # mean squared error
-        e = sum([(t0 + t1*x[i] - y[i])**2 for i in range(m)])
-
-        if abs(J-e) <= ep:
-            print ('Converged, iterations: ', iter, '!!!')
-            converged = True
-
-        J = e   # update error
-        iter += 1  # update iter
-
-        if iter == max_iter:
-            print ('Max interactions exceeded!')
-            converged = True
-
-    return t0, t1
+    return np.array(thetas)
     
 main()
